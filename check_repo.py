@@ -18,29 +18,47 @@ def send_telegram(msg):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
     requests.post(url, data={"chat_id": CHAT_ID, "text": msg})
 
-r = requests.get(URL, timeout=10)
-data = r.json()
-
+# --- Fetch data ---
+data = requests.get(URL, timeout=10).json()
 repo_ops = data["repo"]["operations"]
 
-# operações SOMENTE do dia atual (NY time)
+# --- Filter only today's operations ---
 today_ops = [
     op for op in repo_ops
     if op.get("operationDate") == today_ny
 ]
 
-total_today = sum(op.get("totalAmtAccepted", 0) for op in today_ops)
+# --- Aggregate exactly like the site ---
+totals = {
+    "Treasury": 0,
+    "Agency": 0,
+    "MBS": 0
+}
 
-previous = 0
+for op in today_ops:
+    sec = op.get("securityType")
+    amt = op.get("totalAmtAccepted", 0)
+    if sec in totals:
+        totals[sec] += amt
+
+total_all = sum(totals.values())
+
+# --- Load previous state ---
+previous_total = 0
 if STATE_FILE.exists():
-    previous = json.loads(STATE_FILE.read_text()).get("total", 0)
+    previous_total = json.loads(STATE_FILE.read_text()).get("total", 0)
 
-# alerta somente quando sai de 0 hoje
-if previous == 0 and total_today > 0:
-    send_telegram(
-        f"🚨 REPO ATIVO HOJE 🚨\n"
-        f"Data: {today_ny}\n"
-        f"Total aceito: ${total_today:,}"
+# --- Alert ONLY when leaving zero ---
+if previous_total == 0 and total_all > 0:
+    message = (
+        f"📅 {today_ny}\n\n"
+        f"Repo – Amount ($ Billions)\n"
+        f"Treasury: {totals['Treasury'] / 1e9:.3f}\n"
+        f"Agency: {totals['Agency'] / 1e9:.3f}\n"
+        f"MBS: {totals['MBS'] / 1e9:.3f}\n"
+        f"Total: {total_all / 1e9:.3f}"
     )
+    send_telegram(message)
 
-STATE_FILE.write_text(json.dumps({"total": total_today}))
+# --- Save state ---
+STATE_FILE.write_text(json.dumps({"total": total_all}))
