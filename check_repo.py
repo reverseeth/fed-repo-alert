@@ -62,3 +62,13 @@ if previous_total == 0 and total_all > 0:
 
 # --- Save state ---
 STATE_FILE.write_text(json.dumps({"total": total_all}))
+
+# --- TESTE TEMPORÁRIO ---
+send_telegram(
+    f"TESTE TELEGRAM 🚨\n"
+    f"Data: {today_ny}\n"
+    f"Treasury: 1.000\n"
+    f"Agency: 2.000\n"
+    f"MBS: 3.000\n"
+    f"Total: 6.000"
+)
